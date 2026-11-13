@@ -1,0 +1,19 @@
+{
+  "name": "hans-techy-v4",
+  "version": "4.0.0",
+  "description": "HANS TECHY V4 - Secure multi-user WhatsApp bot with PostgreSQL",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "keys": "node scripts/encrypt-keys.js",
+    "check": "node scripts/check.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "pino": "^9.5.0"
+  }
+}
