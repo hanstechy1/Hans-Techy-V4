@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 const DATABASE_URL = process.env.DATABASE_URL;
 const BOT_NAME = process.env.BOT_NAME || 'HANS TECHY V2';
 const PREFIX = process.env.PREFIX || '.';
-const OWNER_NUMBER = process.env.OWNER_NUMBER || '255700000000';
+const OWNER_NUMBER = process.env.OWNER_NUMBER || '255686005775';
 
 let sock = null;
 let isConnected = false;
@@ -28,7 +28,7 @@ const dbAdapter = DATABASE_URL ? createDbAuthAdapter(DATABASE_URL) : null;
 
 async function startBot(requestPairingPhone = null) {
   if (!dbAdapter) {
-    console.error('[ERROR] DATABASE_URL haijawekwa kwenye Config Vars za Heroku!');
+    console.error('[FATAL] DATABASE_URL is not configured in Heroku Config Vars!');
     return;
   }
 
@@ -43,14 +43,14 @@ async function startBot(requestPairingPhone = null) {
     browser: ['Ubuntu', 'Chrome', '20.0.04']
   });
 
-  // Kutoa Pairing Code mtumiaji anapoomba kutoka kwenye tovuti
+  // Pairing code request
   if (requestPairingPhone && !sock.authState.creds.registered) {
     setTimeout(async () => {
       try {
         const cleanedNumber = requestPairingPhone.replace(/[^0-9]/g, '');
         const code = await sock.requestPairingCode(cleanedNumber);
         latestPairingCode = code;
-        console.log(`[PAIRING] Pairing code kwa ${cleanedNumber}: ${code}`);
+        console.log(`[PAIRING] Generated pairing code for ${cleanedNumber}: ${code}`);
       } catch (err) {
         console.error('[PAIRING ERROR]', err);
       }
@@ -66,65 +66,91 @@ async function startBot(requestPairingPhone = null) {
       const shouldReconnect =
         lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       isConnected = false;
-      console.log('[BOT] Muunganisho umefungwa. Inajaribu kuunganisha tena:', shouldReconnect);
+      console.log('[BOT] Connection closed. Auto-reconnecting:', shouldReconnect);
       if (shouldReconnect) {
         startBot();
       }
     } else if (connection === 'open') {
       isConnected = true;
-      console.log(`[BOT] ${BOT_NAME} Imeunganishwa kikamilifu na ipo ONLINE!`);
+      console.log(`[BOT] Connected successfully! ${BOT_NAME} is ONLINE.`);
       uptimeStart = Date.now();
     }
   });
 
-  // Kusikiliza ujumbe na kutekeleza amri (Commands)
+  // Incoming message listener & command handler
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
-    const msg = messages[0];
-    if (!msg.message || msg.key.fromMe) return;
+    try {
+      const msg = messages[0];
+      if (!msg || !msg.message) return;
 
-    const from = msg.key.remoteJid;
-    const body =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      '';
+      const messageContent =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        msg.message.ephemeralMessage?.message?.conversation ||
+        msg.message.ephemeralMessage?.message?.extendedTextMessage?.text ||
+        '';
 
-    if (!body.startsWith(PREFIX)) return;
+      const body = messageContent.trim();
+      if (!body.startsWith(PREFIX)) return;
 
-    const args = body.slice(PREFIX.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
+      const from = msg.key.remoteJid;
+      const isFromMe = msg.key.fromMe;
+      console.log(`[CMD] Received from ${from}: "${body}" (fromMe: ${isFromMe})`);
 
-    switch (command) {
-      case 'ping':
-      case 'alive': {
-        const pingTime = Date.now() - (msg.messageTimestamp * 1000 || Date.now());
-        const reply = `*╭─「 ${BOT_NAME} 」─╮*\n│ ⚡ Speed: ${Math.abs(pingTime)}ms\n│ ⏱️ Status: ACTIVE\n│ 👑 Owner: ${OWNER_NUMBER}\n╰───────────────╯`;
-        await sock.sendMessage(from, { text: reply }, { quoted: msg });
-        break;
-      }
-      case 'menu':
-      case 'help': {
-        const menuText = `*╭─ ${BOT_NAME} ─╮*\n│ 🤖 Total Commands: 147\n│ ⌨️ Prefix: [ ${PREFIX} ]\n│ ⚙️ Status: ONLINE\n╰──────────────────╯\n\nTumia amri kama:\n• ${PREFIX}ping\n• ${PREFIX}alive\n• ${PREFIX}ai <swali>`;
-        await sock.sendMessage(from, { text: menuText }, { quoted: msg });
-        break;
-      }
-      case 'ai':
-      case 'gpt': {
-        const query = args.join(' ');
-        if (!query) {
-          await sock.sendMessage(from, { text: `Andika swali lako. Mfano: ${PREFIX}ai Habari` }, { quoted: msg });
-          return;
+      const args = body.slice(PREFIX.length).trim().split(/ +/);
+      const command = args.shift().toLowerCase();
+
+      switch (command) {
+        case 'ping':
+        case 'alive': {
+          const pingTime = Date.now() - (msg.messageTimestamp * 1000 || Date.now());
+          const reply = `*╭─「 ${BOT_NAME} 」─╮*\n│ ⚡ Speed: ${Math.abs(pingTime)}ms\n│ ⏱️ Status: ACTIVE 🟢\n│ 👑 Owner: ${OWNER_NUMBER}\n│ ☁️ Host: Heroku / Linux\n│ ⌨️ Prefix: [ ${PREFIX} ]\n╰────────────────────╯`;
+          await sock.sendMessage(from, { text: reply }, { quoted: msg });
+          break;
         }
-        await sock.sendMessage(from, { text: `🤖 *[HANS TECHY AI]*\n\nNimepokea: "${query}". Majibu yanachakatwa...` }, { quoted: msg });
-        break;
+
+        case 'menu':
+        case 'help': {
+          const menuText = `*╭─ ${BOT_NAME} ─╮*\n│ 👑 Owner: ${OWNER_NUMBER}\n│ ⚙️ Mode: PUBLIC\n│ ☁️ Host: Heroku / Linux\n│ ⏱️ Status: ONLINE 🟢\n│ ⌨️ Prefix: [ ${PREFIX} ]\n│ 🤖 Total Commands: 147\n╰──────────────────╯\n\n*TRY COMMANDS:*\n⋄ ${PREFIX}ping\n⋄ ${PREFIX}alive\n⋄ ${PREFIX}uptime\n⋄ ${PREFIX}ai <your question>\n⋄ ${PREFIX}owner`;
+          await sock.sendMessage(from, { text: menuText }, { quoted: msg });
+          break;
+        }
+
+        case 'uptime': {
+          const totalSecs = Math.floor((Date.now() - uptimeStart) / 1000);
+          const hrs = Math.floor(totalSecs / 3600);
+          const mins = Math.floor((totalSecs % 3600) / 60);
+          const secs = totalSecs % 60;
+          await sock.sendMessage(from, { text: `⏱️ *Uptime:* ${hrs}h ${mins}m ${secs}s` }, { quoted: msg });
+          break;
+        }
+
+        case 'owner': {
+          await sock.sendMessage(from, { text: `👑 *Owner:* wa.me/${OWNER_NUMBER.replace(/[^0-9]/g, '')}` }, { quoted: msg });
+          break;
+        }
+
+        case 'ai':
+        case 'gpt': {
+          const query = args.join(' ');
+          if (!query) {
+            await sock.sendMessage(from, { text: `⚠️ Please provide a prompt.\nExample: *${PREFIX}ai Hello, how are you?*` }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: `🤖 *[${BOT_NAME} AI]*\n\nQuery: "${query}"\n\nI am active and processing your request.` }, { quoted: msg });
+          break;
+        }
+
+        default:
+          break;
       }
-      default:
-        break;
+    } catch (error) {
+      console.error('[COMMAND RUNTIME ERROR]', error);
     }
   });
 }
 
-// Endpoint ya tovuti kusoma hali (Status) ya bot
+// REST API endpoint for status
 app.get('/status', (req, res) => {
   const uptimeSeconds = Math.floor((Date.now() - uptimeStart) / 1000);
   const memoryUsage = (process.memoryUsage().rss / (1024 * 1024)).toFixed(2);
@@ -139,11 +165,11 @@ app.get('/status', (req, res) => {
   });
 });
 
-// Endpoint ya tovuti kuomba Pairing Code
+// REST API endpoint for Pairing Code
 app.post('/pair', async (req, res) => {
   const { phone } = req.body;
   if (!phone) {
-    return res.status(400).json({ success: false, message: 'Namba ya simu inahitajika' });
+    return res.status(400).json({ success: false, message: 'Phone number is required' });
   }
 
   const cleanedNumber = phone.replace(/[^0-9]/g, '');
@@ -166,7 +192,7 @@ app.post('/pair', async (req, res) => {
       }
       if (attempts >= 10) {
         clearInterval(interval);
-        return res.status(504).json({ success: false, message: 'Pairing code timeout. Jaribu tena.' });
+        return res.status(504).json({ success: false, message: 'Pairing code timeout. Please try again.' });
       }
     }, 600);
   } catch (err) {
@@ -176,7 +202,7 @@ app.post('/pair', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`[SERVER] Inafanya kazi kwenye port ${PORT}`);
+  console.log(`[SERVER] Running on port ${PORT}`);
   if (DATABASE_URL) {
     startBot();
   }
